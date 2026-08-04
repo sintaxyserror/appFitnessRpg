@@ -1,13 +1,194 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
-generator client {
-  provider = "prisma-client"
-  output   = "../app/generated/prisma"
-}
-
 datasource db {
   provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime   @default(now())
+  character    Character?
+}
+
+enum CharacterClass {
+  UNDEFINED
+  WARRIOR
+  EXPLORER
+  MONK
+  PALADIN
+}
+
+model Character {
+  id             String         @id @default(cuid())
+  userId         String         @unique
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name           String
+  characterClass CharacterClass @default(UNDEFINED)
+
+  // Nivel global del personaje = media de los niveles de los 5 atributos.
+  // Se guarda en cache y se recalcula en lib/xp.ts cada vez que cambia un atributo.
+  level       Int @default(1)
+  skillPoints Int @default(0) // puntos sin gastar, +1 por cada nivel de personaje ganado
+
+  // Inercia del cambio de clase: mientras un atributo distinto al actual
+  // es el dominante, se guarda aquí desde cuándo lo es. Si pasan ~3 semanas
+  // manteniéndose dominante, la clase cambia de verdad y se registra en ClassChangeLog.
+  pendingClass CharacterClass?
+  pendingSince DateTime?
+
+  vitalityDecayAt DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  attributes       Attribute[]
+  sessions         WorkoutSession[]
+  missions         Mission[]
+  achievements     Achievement[]
+  classChangeLogs  ClassChangeLog[]
+  characterWeapons CharacterWeapon[]
+  gameSessions     GameSession[]
+}
+
+enum AttributeType {
+  STRENGTH
+  ENDURANCE
+  AGILITY
+  DEXTERITY
+  VITALITY
+}
+
+model Attribute {
+  id          String        @id @default(cuid())
+  characterId String
+  character   Character     @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  type        AttributeType
+  xp          Int           @default(0)
+  level       Int           @default(1)
+  updatedAt   DateTime      @updatedAt
+
+  @@unique([characterId, type])
+}
+
+enum SessionType {
+  WEIGHTS
+  CARDIO
+  CALISTHENICS
+  SPORT
+}
+
+model WorkoutSession {
+  id          String      @id @default(cuid())
+  characterId String
+  character   Character   @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  type        SessionType
+  date        DateTime    @default(now())
+  durationMin Int
+  notes       String?
+  xpGained    Int         @default(0)
+  details     Json
+  createdAt   DateTime    @default(now())
+
+  @@index([characterId, date])
+}
+
+enum MissionStatus {
+  ACTIVE
+  COMPLETED
+  EXPIRED
+}
+
+model Mission {
+  id          String        @id @default(cuid())
+  characterId String
+  character   Character     @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  title       String
+  description String
+  targetType  SessionType
+  targetValue Int
+  rewardXp    Int           @default(0)
+  progress    Int           @default(0)
+  status      MissionStatus @default(ACTIVE)
+  expiresAt   DateTime
+  createdAt   DateTime      @default(now())
+}
+
+model Achievement {
+  id          String    @id @default(cuid())
+  characterId String
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  title       String
+  description String
+  unlockedAt  DateTime  @default(now())
+}
+
+// Historial de cambios de clase reales (tras superar el umbral de ~3 semanas)
+model ClassChangeLog {
+  id          String         @id @default(cuid())
+  characterId String
+  character   Character      @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  fromClass   CharacterClass
+  toClass     CharacterClass
+  changedAt   DateTime       @default(now())
+}
+
+enum WeaponCategory {
+  MELEE
+  RANGED
+  MAGIC
+}
+
+// Catálogo fijo de armas del juego (pocas, a propósito)
+model Weapon {
+  id            String         @id @default(cuid())
+  name          String
+  description   String
+  category      WeaponCategory
+  diceType      String // ej. "1d8", para usar en la partida de mesa
+  baseDamage    Int // daño de partida al desbloquearla, nivel 1
+  requiredLevel Int // múltiplo de 5: 5, 10, 15...
+
+  characterWeapons CharacterWeapon[]
+}
+
+// Puente: qué armas ha desbloqueado cada personaje, con su propio progreso
+model CharacterWeapon {
+  id          String    @id @default(cuid())
+  characterId String
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  weaponId    String
+  weapon      Weapon    @relation(fields: [weaponId], references: [id])
+
+  xp            Int      @default(0)
+  level         Int      @default(1)
+  currentDamage Int // daño base del catálogo + incremento por nivel, calculado en lib/xp.ts
+  equipped      Boolean  @default(false) // el arma que llevas para la próxima partida
+  unlockedAt    DateTime @default(now())
+
+  gameSessions GameSession[]
+
+  @@unique([characterId, weaponId])
+  @@index([characterId, equipped])
+}
+
+// Partidas de rol de mesa jugadas en la vida real
+model GameSession {
+  id                String          @id @default(cuid())
+  characterId       String
+  character         Character       @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  characterWeaponId String
+  characterWeapon   CharacterWeapon @relation(fields: [characterWeaponId], references: [id])
+
+  date        DateTime @default(now())
+  durationMin Int?
+  notes       String?
+  kills       Int      @default(0) // fuente de la XP del arma equipada
+  xpGained    Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  @@index([characterId, date])
 }
