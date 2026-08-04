@@ -12,7 +12,9 @@ model User {
   passwordHash String
   name         String
   createdAt    DateTime   @default(now())
-  character    Character?
+
+  character       Character?
+  workoutSessions WorkoutSession[]
 }
 
 enum CharacterClass {
@@ -30,14 +32,9 @@ model Character {
   name           String
   characterClass CharacterClass @default(UNDEFINED)
 
-  // Nivel global del personaje = media de los niveles de los 5 atributos.
-  // Se guarda en cache y se recalcula en lib/xp.ts cada vez que cambia un atributo.
   level       Int @default(1)
-  skillPoints Int @default(0) // puntos sin gastar, +1 por cada nivel de personaje ganado
+  skillPoints Int @default(0)
 
-  // Inercia del cambio de clase: mientras un atributo distinto al actual
-  // es el dominante, se guarda aquí desde cuándo lo es. Si pasan ~3 semanas
-  // manteniéndose dominante, la clase cambia de verdad y se registra en ClassChangeLog.
   pendingClass CharacterClass?
   pendingSince DateTime?
 
@@ -46,7 +43,6 @@ model Character {
   updatedAt       DateTime @updatedAt
 
   attributes       Attribute[]
-  sessions         WorkoutSession[]
   missions         Mission[]
   achievements     Achievement[]
   classChangeLogs  ClassChangeLog[]
@@ -81,19 +77,86 @@ enum SessionType {
   SPORT
 }
 
+// Diario de entrenamiento: pertenece siempre al usuario, no requiere personaje.
+// xpGained queda vacío si el usuario no tiene Character creado.
 model WorkoutSession {
   id          String      @id @default(cuid())
-  characterId String
-  character   Character   @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   type        SessionType
   date        DateTime    @default(now())
   durationMin Int
   notes       String?
-  xpGained    Int         @default(0)
-  details     Json
+  xpGained    Int?
   createdAt   DateTime    @default(now())
 
-  @@index([characterId, date])
+  weightSets       WeightSet[]
+  calisthenicsSets CalisthenicsSet[]
+  cardioDetail     CardioDetail?
+  sportDetail      SportDetail?
+
+  @@index([userId, date])
+}
+
+// Catálogo reutilizable de ejercicios de pesas (para graficar evolución)
+model Exercise {
+  id   String @id @default(cuid())
+  name String @unique
+
+  weightSets WeightSet[]
+}
+
+model WeightSet {
+  id         String         @id @default(cuid())
+  sessionId  String
+  session    WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  exerciseId String
+  exercise   Exercise       @relation(fields: [exerciseId], references: [id])
+  setNumber  Int
+  reps       Int
+  weightKg   Float
+
+  @@index([exerciseId])
+}
+
+// Catálogo reutilizable de movimientos de calistenia
+model CalisthenicsMovement {
+  id   String @id @default(cuid())
+  name String @unique
+
+  calisthenicsSets CalisthenicsSet[]
+}
+
+model CalisthenicsSet {
+  id         String               @id @default(cuid())
+  sessionId  String
+  session    WorkoutSession       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  movementId String
+  movement   CalisthenicsMovement @relation(fields: [movementId], references: [id])
+  setNumber  Int
+  reps       Int
+  progression String // ej. "estricta", "asistida"
+
+  @@index([movementId])
+}
+
+// Bloque único de detalle de cardio por sesión (no series)
+model CardioDetail {
+  id            String         @id @default(cuid())
+  sessionId     String         @unique
+  session       WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  distanceKm    Float
+  avgPaceMinKm  Float?
+  avgHeartRate  Int?
+}
+
+// Bloque único de detalle de deporte por sesión
+model SportDetail {
+  id                  String         @id @default(cuid())
+  sessionId           String         @unique
+  session             WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sportType           String
+  perceivedIntensity  Int // escala RPE 1-10
 }
 
 enum MissionStatus {
@@ -126,7 +189,6 @@ model Achievement {
   unlockedAt  DateTime  @default(now())
 }
 
-// Historial de cambios de clase reales (tras superar el umbral de ~3 semanas)
 model ClassChangeLog {
   id          String         @id @default(cuid())
   characterId String
@@ -142,20 +204,18 @@ enum WeaponCategory {
   MAGIC
 }
 
-// Catálogo fijo de armas del juego (pocas, a propósito)
 model Weapon {
   id            String         @id @default(cuid())
   name          String
   description   String
   category      WeaponCategory
-  diceType      String // ej. "1d8", para usar en la partida de mesa
-  baseDamage    Int // daño de partida al desbloquearla, nivel 1
-  requiredLevel Int // múltiplo de 5: 5, 10, 15...
+  diceType      String
+  baseDamage    Int
+  requiredLevel Int
 
   characterWeapons CharacterWeapon[]
 }
 
-// Puente: qué armas ha desbloqueado cada personaje, con su propio progreso
 model CharacterWeapon {
   id          String    @id @default(cuid())
   characterId String
@@ -165,8 +225,8 @@ model CharacterWeapon {
 
   xp            Int      @default(0)
   level         Int      @default(1)
-  currentDamage Int // daño base del catálogo + incremento por nivel, calculado en lib/xp.ts
-  equipped      Boolean  @default(false) // el arma que llevas para la próxima partida
+  currentDamage Int
+  equipped      Boolean  @default(false)
   unlockedAt    DateTime @default(now())
 
   gameSessions GameSession[]
@@ -175,7 +235,6 @@ model CharacterWeapon {
   @@index([characterId, equipped])
 }
 
-// Partidas de rol de mesa jugadas en la vida real
 model GameSession {
   id                String          @id @default(cuid())
   characterId       String
@@ -186,7 +245,7 @@ model GameSession {
   date        DateTime @default(now())
   durationMin Int?
   notes       String?
-  kills       Int      @default(0) // fuente de la XP del arma equipada
+  kills       Int      @default(0)
   xpGained    Int      @default(0)
   createdAt   DateTime @default(now())
 
