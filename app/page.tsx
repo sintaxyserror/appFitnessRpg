@@ -1,65 +1,95 @@
-import Image from "next/image";
+import { prisma } from "@/lib/prisma";
+import { getOrCreateCharacter } from "@/app/actions/character";
+import WorkoutTracker from "@/components/WorkoutTracker";
 
-export default function Home() {
+export default async function Home() {
+  // Simulación de usuario logueado
+  const TEST_USER_ID = "test-user-123";
+  
+  // Aseguramos que el usuario de prueba existe
+  let user = await prisma.user.findUnique({
+    where: { id: TEST_USER_ID }
+  });
+
+  if (!user) {
+    user = await prisma.user.create({
+      data: {
+        id: TEST_USER_ID,
+        email: "test@example.com",
+        name: "Héroe de Prueba",
+        passwordHash: "no-password", // Solo para demo
+      }
+    });
+  }
+
+  const character = await getOrCreateCharacter(TEST_USER_ID, user.name);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="flex flex-col min-h-screen bg-black text-white p-8">
+      <header className="max-w-4xl mx-auto w-full mb-12">
+        <h1 className="text-4xl font-extrabold tracking-tighter sm:text-6xl text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
+          FITNESS RPG
+        </h1>
+        <p className="mt-4 text-zinc-400 text-lg">
+          Tu personaje es el reflejo de tu esfuerzo real. Entrena para definir tu destino.
+        </p>
+      </header>
+
+      <main className="max-w-4xl mx-auto w-full grid gap-8 md:grid-cols-2 items-start">
+        <div className="space-y-6">
+          <div className="p-6 bg-zinc-900 rounded-xl border border-zinc-800">
+            <h3 className="text-xl font-bold mb-4 text-zinc-300">Ficha de Personaje</h3>
+            <div className="space-y-3">
+              <div className="flex justify-between border-b border-zinc-800 pb-2">
+                <span className="text-zinc-500">Nombre</span>
+                <span className="font-medium">{character.name}</span>
+              </div>
+              <div className="flex justify-between border-b border-zinc-800 pb-2">
+                <span className="text-zinc-500">Nivel</span>
+                <span className="font-medium">{character.level}</span>
+              </div>
+              <div className="flex justify-between border-b border-zinc-800 pb-2">
+                <span className="text-zinc-500">Clase Actual</span>
+                <span className="font-bold text-blue-400">{character.characterClass}</span>
+              </div>
+              {character.pendingClass && character.pendingClass !== character.characterClass && (
+                <div className="bg-amber-900/20 p-3 rounded-lg border border-amber-900/50">
+                  <p className="text-xs text-amber-500 uppercase font-bold mb-1">Transición de Clase detectada</p>
+                  <p className="text-sm text-zinc-300">
+                    Tu entrenamiento reciente sugiere que estás convirtiéndote en un <span className="font-bold text-amber-400">{character.pendingClass}</span>.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="p-6 bg-zinc-900 rounded-xl border border-zinc-800">
+            <h3 className="text-xl font-bold mb-4 text-zinc-300">Atributos</h3>
+            <div className="grid grid-cols-2 gap-4">
+              {character.attributes.map((attr: any) => (
+                <div key={attr.id} className="flex flex-col">
+                  <span className="text-xs text-zinc-500 uppercase">{attr.type}</span>
+                  <div className="flex items-center gap-2">
+                    <div className="h-2 flex-1 bg-zinc-800 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-emerald-500" 
+                        style={{ width: `${(attr.xp % 100)}%` }}
+                      ></div>
+                    </div>
+                    <span className="text-sm font-bold">Lvl {attr.level}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+
+        <WorkoutTracker userId={TEST_USER_ID} character={character} />
       </main>
+
+      <footer className="mt-20 py-8 border-t border-zinc-900 text-center text-zinc-600 text-sm">
+        <p>Fitness RPG - Basado en tu historial de entrenamiento real.</p>
+      </footer>
     </div>
   );
 }
