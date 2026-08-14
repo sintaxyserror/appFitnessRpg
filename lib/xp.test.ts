@@ -10,6 +10,9 @@ import {
   calculateWeaponXpFromKills,
   calculateWeaponLevel,
   calculateWeaponDamage,
+  calculateStreakDays,
+  calculateVitalityXpGain,
+  calculateVitalityDecay,
   type AttributeLevels,
   type ClassInertiaState,
 } from "./xp";
