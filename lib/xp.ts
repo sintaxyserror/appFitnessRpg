@@ -10,6 +10,11 @@ import {
   WEAPON_XP_PER_KILL,
   weaponXpRequiredForLevel,
   WEAPON_DAMAGE_PER_LEVEL,
+  VITALITY_BASE_XP_PER_SESSION,
+  VITALITY_STREAK_BONUS_PER_DAY,
+  VITALITY_MAX_STREAK_BONUS,
+  VITALITY_DECAY_GRACE_DAYS,
+  VITALITY_DECAY_XP_PER_DAY,
 } from "./xp-constants";
 
 export function calculateWorkoutXp(
@@ -131,4 +136,48 @@ export function calculateWeaponLevel(totalXp: number): number {
 
 export function calculateWeaponDamage(baseDamage: number, level: number): number {
   return baseDamage + (level - 1) * WEAPON_DAMAGE_PER_LEVEL;
+}
+// ---------------------------------------------------------------------------
+// Vitalidad: constancia general
+// ---------------------------------------------------------------------------
+
+/**
+ * Calcula la racha de días consecutivos entrenando, dado un array de fechas
+ * de sesiones (ordenadas de más reciente a más antigua) y la fecha de "hoy".
+ */
+export function calculateStreakDays(sessionDates: Date[], today: Date): number {
+  if (sessionDates.length === 0) return 0;
+
+  const uniqueDays = new Set(
+    sessionDates.map((d) => d.toISOString().split("T")[0])
+  );
+
+  let streak = 0;
+  const cursor = new Date(today);
+
+  while (uniqueDays.has(cursor.toISOString().split("T")[0])) {
+    streak++;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+
+  return streak;
+}
+
+/** XP de Vitalidad ganado al registrar una sesión, según la racha actual. */
+export function calculateVitalityXpGain(streakDays: number): number {
+  const streakBonus = Math.min(
+    streakDays * VITALITY_STREAK_BONUS_PER_DAY,
+    VITALITY_MAX_STREAK_BONUS
+  );
+  return Math.round(VITALITY_BASE_XP_PER_SESSION + streakBonus);
+}
+
+/**
+ * XP de Vitalidad perdido por inactividad.
+ * daysSinceLastSession = días completos desde la última sesión registrada.
+ */
+export function calculateVitalityDecay(daysSinceLastSession: number): number {
+  const daysOverGrace = daysSinceLastSession - VITALITY_DECAY_GRACE_DAYS;
+  if (daysOverGrace <= 0) return 0;
+  return daysOverGrace * VITALITY_DECAY_XP_PER_DAY;
 }

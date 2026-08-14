@@ -165,3 +165,48 @@ describe("calculateWeaponDamage", () => {
     expect(calculateWeaponDamage(10, 3)).toBe(14);
   });
 });
+
+describe("calculateStreakDays", () => {
+  it("da 0 si no hay sesiones", () => {
+    expect(calculateStreakDays([], new Date("2026-01-10"))).toBe(0);
+  });
+
+  it("cuenta días consecutivos hasta hoy", () => {
+    const today = new Date("2026-01-10");
+    const dates = [
+      new Date("2026-01-10"),
+      new Date("2026-01-09"),
+      new Date("2026-01-08"),
+    ];
+    expect(calculateStreakDays(dates, today)).toBe(3);
+  });
+
+  it("corta la racha si hay un día sin sesión", () => {
+    const today = new Date("2026-01-10");
+    const dates = [new Date("2026-01-10"), new Date("2026-01-08")];
+    expect(calculateStreakDays(dates, today)).toBe(1);
+  });
+});
+
+describe("calculateVitalityXpGain", () => {
+  it("da el XP base sin racha", () => {
+    expect(calculateVitalityXpGain(0)).toBe(5);
+  });
+
+  it("sube con la racha, pero no supera el tope", () => {
+    expect(calculateVitalityXpGain(10)).toBe(10);
+    expect(calculateVitalityXpGain(100)).toBe(20);
+  });
+});
+
+describe("calculateVitalityDecay", () => {
+  it("no decae dentro del margen de gracia", () => {
+    expect(calculateVitalityDecay(2)).toBe(0);
+    expect(calculateVitalityDecay(3)).toBe(0);
+  });
+
+  it("decae proporcionalmente tras superar el margen", () => {
+    expect(calculateVitalityDecay(4)).toBe(5);
+    expect(calculateVitalityDecay(6)).toBe(15);
+  });
+});

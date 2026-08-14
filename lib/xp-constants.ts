@@ -53,3 +53,18 @@ export function weaponXpRequiredForLevel(level: number): number {
 
 // Incremento de daño base del arma por cada nivel ganado.
 export const WEAPON_DAMAGE_PER_LEVEL = 2;
+
+// --- Vitalidad: constancia general, no ligada a un tipo de sesión concreto ---
+
+// XP base de Vitalidad por cada sesión registrada, sea del tipo que sea.
+export const VITALITY_BASE_XP_PER_SESSION = 5;
+
+// XP extra por cada día de racha consecutiva entrenando (crece suave, con tope).
+export const VITALITY_STREAK_BONUS_PER_DAY = 0.5;
+export const VITALITY_MAX_STREAK_BONUS = 15;
+
+// Días sin entrenar antes de que la Vitalidad empiece a decaer.
+export const VITALITY_DECAY_GRACE_DAYS = 3;
+
+// XP de Vitalidad perdido por cada día de inactividad una vez superado el margen.
+export const VITALITY_DECAY_XP_PER_DAY = 5;
