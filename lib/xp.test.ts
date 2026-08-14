@@ -10,11 +10,11 @@ import {
   calculateWeaponXpFromKills,
   calculateWeaponLevel,
   calculateWeaponDamage,
-  calculateStreakDays,
-  calculateVitalityXpGain,
-  calculateVitalityDecay,
   type AttributeLevels,
   type ClassInertiaState,
+  calculateStreakDays,
+  calculateVitalityDecay,
+  calculateVitalityXpGain,
 } from "./xp";
 
 describe("calculateWorkoutXp", () => {
