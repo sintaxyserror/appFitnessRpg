@@ -15,6 +15,7 @@ model User {
 
   character       Character?
   workoutSessions WorkoutSession[]
+  routines        Routine[]
 }
 
 enum CharacterClass {
@@ -77,18 +78,28 @@ enum SessionType {
   SPORT
 }
 
-// Diario de entrenamiento: pertenece siempre al usuario, no requiere personaje.
-// xpGained queda vacío si el usuario no tiene Character creado.
+enum RoutineType {
+  WEIDER
+  FULL_BODY
+  UPPER_LOWER
+  PUSH_PULL_LEGS
+  OTHER
+}
+
 model WorkoutSession {
-  id          String      @id @default(cuid())
+  id          String       @id @default(cuid())
   userId      String
-  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   type        SessionType
-  date        DateTime    @default(now())
+  routineType RoutineType?
+  date        DateTime     @default(now())
   durationMin Int
   notes       String?
   xpGained    Int?
-  createdAt   DateTime    @default(now())
+  createdAt   DateTime     @default(now())
+
+  routineId        String?
+  routine          Routine? @relation(fields: [routineId], references: [id])
 
   weightSets       WeightSet[]
   calisthenicsSets CalisthenicsSet[]
@@ -98,65 +109,112 @@ model WorkoutSession {
   @@index([userId, date])
 }
 
-// Catálogo reutilizable de ejercicios de pesas (para graficar evolución)
-model Exercise {
-  id   String @id @default(cuid())
-  name String @unique
+enum MuscleGroup {
+  CHEST
+  BACK
+  SHOULDERS
+  BICEPS
+  TRICEPS
+  FOREARMS
+  QUADS
+  HAMSTRINGS
+  GLUTES
+  CALVES
+  ABS
+  FULL_BODY
+  OTHER
+}
 
-  weightSets WeightSet[]
+model Exercise {
+  id          String       @id @default(cuid())
+  name        String       @unique
+  muscleGroup MuscleGroup?
+
+  weightSets       WeightSet[]
+  routineExercises RoutineExercise[]
 }
 
 model WeightSet {
-  id         String         @id @default(cuid())
-  sessionId  String
-  session    WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  exerciseId String
-  exercise   Exercise       @relation(fields: [exerciseId], references: [id])
-  setNumber  Int
-  reps       Int
-  weightKg   Float
+  id          String         @id @default(cuid())
+  sessionId   String
+  session     WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  exerciseId  String
+  exercise    Exercise       @relation(fields: [exerciseId], references: [id])
+  setNumber   Int
+  reps        Int
+  weightKg    Float
+  restSeconds Int?
+  rir         Int? // Reps in Reserve: 0-3
 
   @@index([exerciseId])
 }
 
-// Catálogo reutilizable de movimientos de calistenia
 model CalisthenicsMovement {
-  id   String @id @default(cuid())
-  name String @unique
+  id          String       @id @default(cuid())
+  name        String       @unique
+  muscleGroup MuscleGroup?
 
   calisthenicsSets CalisthenicsSet[]
+  routineExercises RoutineExercise[]
 }
 
 model CalisthenicsSet {
-  id         String               @id @default(cuid())
-  sessionId  String
-  session    WorkoutSession       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  movementId String
-  movement   CalisthenicsMovement @relation(fields: [movementId], references: [id])
-  setNumber  Int
-  reps       Int
-  progression String // ej. "estricta", "asistida"
+  id          String               @id @default(cuid())
+  sessionId   String
+  session     WorkoutSession       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  movementId  String
+  movement    CalisthenicsMovement @relation(fields: [movementId], references: [id])
+  setNumber   Int
+  reps        Int
+  progression String
+  restSeconds Int?
+  rir         Int? // Reps in Reserve: 0-3
 
   @@index([movementId])
 }
 
-// Bloque único de detalle de cardio por sesión (no series)
+enum CardioType {
+  CONTINUOUS
+  INTERVALS
+  FARTLEK
+}
+
 model CardioDetail {
   id            String         @id @default(cuid())
   sessionId     String         @unique
   session       WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  distanceKm    Float
+  cardioType    CardioType     @default(CONTINUOUS)
+  distanceKm    Float?
   avgPaceMinKm  Float?
   avgHeartRate  Int?
+
+  intervals CardioInterval[]
 }
 
-// Bloque único de detalle de deporte por sesión
+enum IntervalType {
+  WORK
+  REST
+}
+
+model CardioInterval {
+  id             String       @id @default(cuid())
+  cardioDetailId String
+  cardioDetail   CardioDetail @relation(fields: [cardioDetailId], references: [id], onDelete: Cascade)
+  order          Int
+  type           IntervalType
+  distanceKm     Float?
+  durationMin    Float?
+  paceMinKm      Float?
+
+  @@index([cardioDetailId, order])
+}
+
 model SportDetail {
   id                  String         @id @default(cuid())
   sessionId           String         @unique
   session             WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   sportType           String
-  perceivedIntensity  Int // escala RPE 1-10
+  perceivedIntensity  Int
 }
 
 enum MissionStatus {
@@ -250,4 +308,37 @@ model GameSession {
   createdAt   DateTime @default(now())
 
   @@index([characterId, date])
+}
+
+model Routine {
+  id          String       @id @default(cuid())
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  routineType RoutineType?
+  createdAt   DateTime     @default(now())
+
+  exercises RoutineExercise[]
+  sessions  WorkoutSession[]
+
+  @@index([userId])
+}
+
+model RoutineExercise {
+  id         String   @id @default(cuid())
+  routineId  String
+  routine    Routine  @relation(fields: [routineId], references: [id], onDelete: Cascade)
+  order      Int
+
+  exerciseId String?
+  exercise   Exercise? @relation(fields: [exerciseId], references: [id])
+
+  movementId String?
+  movement   CalisthenicsMovement? @relation(fields: [movementId], references: [id])
+
+  targetSets    Int
+  targetRepsMin Int
+  targetRepsMax Int
+
+  @@index([routineId, order])
 }
