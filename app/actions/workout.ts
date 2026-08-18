@@ -1,9 +1,11 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
-import { SessionType } from "@prisma/client";
-import { syncCharacterClass } from "@/lib/character-logic";
 import { revalidatePath } from "next/cache";
+import { SessionType } from "@prisma/client";
+import {
+  createWorkoutSession,
+  normalizeWorkoutSessionInput,
+} from "@/lib/services/workout-session-service";
 
 export async function addWorkoutSession(data: {
   userId: string;
@@ -11,17 +13,10 @@ export async function addWorkoutSession(data: {
   durationMin: number;
   notes?: string;
 }) {
-  const session = await prisma.workoutSession.create({
-    data: {
-      userId: data.userId,
-      type: data.type,
-      durationMin: data.durationMin,
-      notes: data.notes,
-    },
-  });
-
-  // Cada vez que se añade un entrenamiento, recalculamos la clase
-  await syncCharacterClass(data.userId);
+  const session = await createWorkoutSession(
+    data.userId,
+    normalizeWorkoutSessionInput(data)
+  );
 
   revalidatePath("/");
   return session;

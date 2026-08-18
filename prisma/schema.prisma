@@ -145,6 +145,7 @@ model WeightSet {
   weightKg    Float
   restSeconds Int?
   rir         Int? // Reps in Reserve: 0-3
+  note        String?
 
   @@index([exerciseId])
 }
@@ -169,6 +170,7 @@ model CalisthenicsSet {
   progression String
   restSeconds Int?
   rir         Int? // Reps in Reserve: 0-3
+  note        String?
 
   @@index([movementId])
 }
@@ -310,6 +312,16 @@ model GameSession {
   @@index([characterId, date])
 }
 
+enum Weekday {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
 model Routine {
   id          String       @id @default(cuid())
   userId      String
@@ -320,8 +332,19 @@ model Routine {
 
   exercises RoutineExercise[]
   sessions  WorkoutSession[]
+  days      RoutineDay[]
 
   @@index([userId])
+}
+
+model RoutineDay {
+  id       String   @id @default(cuid())
+  routineId String
+  routine   Routine  @relation(fields: [routineId], references: [id], onDelete: Cascade)
+  day      Weekday
+
+  @@unique([routineId, day])
+  @@index([routineId, day])
 }
 
 model RoutineExercise {
@@ -339,6 +362,8 @@ model RoutineExercise {
   targetSets    Int
   targetRepsMin Int
   targetRepsMax Int
+  targetRir     Int?   // Reps in Reserve objetivo general: 0-3
+  targetRirs    Int[]  @default([]) // RIR objetivo por serie
 
   @@index([routineId, order])
 }

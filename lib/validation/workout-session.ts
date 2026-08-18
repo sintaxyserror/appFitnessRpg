@@ -7,6 +7,7 @@ const weightSetSchema = z.object({
   weightKg: z.number().min(0),
   restSeconds: z.number().int().min(0).optional(),
   rir: z.number().int().min(0).max(3).optional(),
+  note: z.string().optional(),
 });
 
 const calisthenicsSetSchema = z.object({
@@ -16,6 +17,7 @@ const calisthenicsSetSchema = z.object({
   progression: z.string().min(1),
   restSeconds: z.number().int().min(0).optional(),
   rir: z.number().int().min(0).max(3).optional(),
+  note: z.string().optional(),
 });
 
 const cardioIntervalSchema = z.object({

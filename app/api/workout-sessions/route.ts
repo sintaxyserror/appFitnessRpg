@@ -50,3 +50,18 @@ export async function POST(request: Request) {
 
   return NextResponse.json(created, { status: 201 });
 }
+
+export async function DELETE(request: Request) {
+  const session = await auth();
+  if (!session?.user) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
+
+  const body = await request.json().catch(() => ({}));
+  if (body?.all) {
+    await prisma.workoutSession.deleteMany({ where: { userId: session.user.id } });
+    return NextResponse.json({ success: true });
+  }
+
+  return NextResponse.json({ error: "No se indicó acción válida" }, { status: 400 });
+}

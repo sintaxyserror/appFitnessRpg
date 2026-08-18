@@ -16,6 +16,7 @@ import {
   type AttributeLevels,
   type ClassInertiaState,
 } from "./xp";
+import { normalizeWorkoutSessionInput } from "./services/workout-session-service";
 
 describe("calculateWorkoutXp", () => {
   it("da XP proporcional a la duración sin repeticiones recientes", () => {
@@ -199,6 +200,33 @@ describe("calculateVitalityXpGain", () => {
   it("sube con la racha, pero no supera el tope", () => {
     expect(calculateVitalityXpGain(10)).toBe(10);
     expect(calculateVitalityXpGain(100)).toBe(20);
+  });
+});
+
+describe("normalizeWorkoutSessionInput", () => {
+  it("normaliza una sesión mínima sin detalles para que pueda entrar por el servicio principal", () => {
+    const normalized = normalizeWorkoutSessionInput({
+      type: "WEIGHTS",
+      durationMin: 60,
+      notes: "sesión de prueba",
+    });
+
+    expect(normalized.type).toBe("WEIGHTS");
+    expect(normalized.durationMin).toBe(60);
+    expect((normalized as any).weightSets).toEqual([]);
+    expect(normalized.notes).toBe("sesión de prueba");
+  });
+
+  it("normaliza cardio sin detalles para evitar nulls en el servicio", () => {
+    const normalized = normalizeWorkoutSessionInput({
+      type: "CARDIO",
+      durationMin: 30,
+    });
+
+    expect((normalized as any).cardioDetail).toMatchObject({
+      cardioType: "CONTINUOUS",
+      distanceKm: undefined,
+    });
   });
 });
 

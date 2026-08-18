@@ -10,6 +10,8 @@ const routineExerciseSchema = z.object({
   targetSets: z.number().int().min(1),
   targetRepsMin: z.number().int().min(1),
   targetRepsMax: z.number().int().min(1),
+  targetRir: z.number().int().min(0).max(3).optional(),
+  targetRirs: z.array(z.number().int().min(0).max(3)).optional(),
 }).refine(
   (data) => (data.exerciseId ? 1 : 0) + (data.movementId ? 1 : 0) === 1,
   { message: "Debe indicarse exactamente uno: exerciseId o movementId" }
@@ -18,6 +20,7 @@ const routineExerciseSchema = z.object({
 const updateRoutineSchema = z.object({
   name: z.string().min(1).optional(),
   routineType: z.enum(["WEIDER", "FULL_BODY", "UPPER_LOWER", "PUSH_PULL_LEGS", "OTHER"]).optional(),
+  days: z.array(z.enum(["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"])).optional(),
   exercises: z.array(routineExerciseSchema).optional(),
 });
 
@@ -76,8 +79,11 @@ export async function PUT(
 
   const updated = await prisma.$transaction(async (tx) => {
     if (parsed.data.exercises) {
-      // Reemplaza la lista completa de ejercicios (más simple y predecible que hacer diff).
       await tx.routineExercise.deleteMany({ where: { routineId: id } });
+    }
+
+    if (parsed.data.days) {
+      await tx.routineDay.deleteMany({ where: { routineId: id } });
     }
 
     return tx.routine.update({
@@ -86,10 +92,25 @@ export async function PUT(
         name: parsed.data.name,
         routineType: parsed.data.routineType,
         ...(parsed.data.exercises
-          ? { exercises: { create: parsed.data.exercises } }
+          ? { exercises: { create: parsed.data.exercises.map((exercise) => ({
+              order: exercise.order,
+              targetSets: exercise.targetSets,
+              targetRepsMin: exercise.targetRepsMin,
+              targetRepsMax: exercise.targetRepsMax,
+              targetRir: exercise.targetRirs?.[0] ?? exercise.targetRir ?? 2,
+              targetRirs: exercise.targetRirs ?? [exercise.targetRir ?? 2].slice(0, exercise.targetSets),
+              ...(exercise.exerciseId ? { exercise: { connect: { id: exercise.exerciseId } } } : {}),
+              ...(exercise.movementId ? { movement: { connect: { id: exercise.movementId } } } : {}),
+            })) } }
+          : {}),
+        ...(parsed.data.days
+          ? { days: { create: parsed.data.days.map((day) => ({ day })) } }
           : {}),
       },
-      include: { exercises: { include: { exercise: true, movement: true } } },
+      include: {
+        exercises: { include: { exercise: true, movement: true } },
+        days: true,
+      },
     });
   });
 

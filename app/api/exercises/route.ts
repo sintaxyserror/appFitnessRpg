@@ -14,7 +14,6 @@ export async function GET(request: Request) {
   const exercises = await prisma.exercise.findMany({
     where: search ? { name: { contains: search, mode: "insensitive" } } : undefined,
     orderBy: { name: "asc" },
-    take: 50,
   });
 
   return NextResponse.json(exercises);
