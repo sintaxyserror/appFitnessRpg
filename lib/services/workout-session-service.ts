@@ -28,7 +28,6 @@ export async function createWorkoutSession(
 ) {
   const date = input.date ?? new Date();
 
-  // Cuenta sesiones recientes del mismo tipo (últimos 7 días) para diminishing returns.
   const sevenDaysAgo = new Date(date);
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
@@ -42,13 +41,11 @@ export async function createWorkoutSession(
 
   const xpGained = calculateWorkoutXp(input.durationMin, recentSameTypeCount);
 
-  // Comprueba si el usuario tiene personaje (la capa de rol es opcional).
   const character = await prisma.character.findUnique({
     where: { userId },
     include: { attributes: true },
   });
 
-  // Crea la sesión y su detalle correspondiente en una transacción.
   const session = await prisma.$transaction(async (tx) => {
     const created = await tx.workoutSession.create({
       data: {
@@ -58,6 +55,14 @@ export async function createWorkoutSession(
         durationMin: input.durationMin,
         notes: input.notes,
         xpGained: character ? xpGained : null,
+        routineId:
+          input.type === "WEIGHTS" || input.type === "CALISTHENICS"
+            ? input.routineId
+            : undefined,
+        routineType:
+          input.type === "WEIGHTS" || input.type === "CALISTHENICS"
+            ? input.routineType
+            : undefined,
       },
     });
 
@@ -69,6 +74,8 @@ export async function createWorkoutSession(
           setNumber: set.setNumber,
           reps: set.reps,
           weightKg: set.weightKg,
+          restSeconds: set.restSeconds,
+          rir: set.rir,
         })),
       });
     } else if (input.type === "CALISTHENICS") {
@@ -79,17 +86,33 @@ export async function createWorkoutSession(
           setNumber: set.setNumber,
           reps: set.reps,
           progression: set.progression,
+          restSeconds: set.restSeconds,
+          rir: set.rir,
         })),
       });
     } else if (input.type === "CARDIO") {
-      await tx.cardioDetail.create({
+      const cardioDetail = await tx.cardioDetail.create({
         data: {
           sessionId: created.id,
+          cardioType: input.cardioDetail.cardioType,
           distanceKm: input.cardioDetail.distanceKm,
           avgPaceMinKm: input.cardioDetail.avgPaceMinKm,
           avgHeartRate: input.cardioDetail.avgHeartRate,
         },
       });
+
+      if (input.cardioDetail.intervals && input.cardioDetail.intervals.length > 0) {
+        await tx.cardioInterval.createMany({
+          data: input.cardioDetail.intervals.map((interval) => ({
+            cardioDetailId: cardioDetail.id,
+            order: interval.order,
+            type: interval.type,
+            distanceKm: interval.distanceKm,
+            durationMin: interval.durationMin,
+            paceMinKm: interval.paceMinKm,
+          })),
+        });
+      }
     } else if (input.type === "SPORT") {
       await tx.sportDetail.create({
         data: {
@@ -103,16 +126,12 @@ export async function createWorkoutSession(
     return created;
   });
 
-  // Si no hay personaje, la sesión queda como diario puro, sin más.
   if (!character) {
     return session;
   }
 
-  // --- A partir de aquí, cascada de actualización del personaje ---
-
   const attributeType = getAttributeForSessionType(input.type);
 
-  // Racha de días consecutivos, incluyendo esta sesión.
   const recentDates = await prisma.workoutSession.findMany({
     where: { userId },
     select: { date: true },
@@ -146,12 +165,10 @@ export async function createWorkoutSession(
       updatedAttributes[type] = newLevel;
     }
 
-    // Recalcula nivel de personaje y puntos de habilidad.
     const previousLevel = character.level;
     const newLevel = calculateCharacterLevel(Object.values(updatedAttributes));
     const skillPointsGained = calculateSkillPointsGained(previousLevel, newLevel);
 
-    // Aplica inercia de clase.
     const dominantNow = determineDominantClass(updatedAttributes);
     const inertiaResult = applyClassInertia(
       {
